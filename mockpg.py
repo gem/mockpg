@@ -5,6 +5,7 @@ import sys
 import os
 import time
 import struct
+import ast
 
 SOCKDIR="/tmp/mockpg/"
 SOCK=SOCKDIR+".s.PGSQL.5432"
@@ -88,11 +89,24 @@ def populate (exp, rep):
 #                      I32 len of field (-1 means NULL and no other bytes must be added)
 #                      Bytes the field value
 
+#
+#  MAIN
+#
 
-populate( "SELECT setting from pg_settings where name = 'garago';", [ [ "setting" ] , [ "true" ] ] );
-populate( "SELECT setting from pg_settings where name = 'gara';", [ [ "allo" ] , [ "tollo" ] ] );
-populate( "SELECT a,b,c from pg_settings where name = 'ga';", [ [ "a", "b", "c" ] , [ "allo", "billo", "collo" ] ] );
-populate( "SELECT name,setting from pg_settings WHERE name = 'application_name';", [ [ "name", "setting" ], ["application_name", "psql" ], ["application_sguzzo", "psqlzzo" ]] )
+if len(sys.argv) < 3 or ((len(sys.argv) - 1) % 2) != 0:
+    print "Usage:"
+    print "    %s <match> <return> [<match> <return> [<match> <return> ... ]]" % sys.arg[0]
+    print "    <match>  - the query addressed"
+    print "    <return> - a parsable string python object in the form [ [ descs ], [ first row ], ... ]"
+    sys.exit(1)
+
+# populate( "SELECT setting from pg_settings where name = 'garago';", [ [ "setting" ] , [ "true" ] ] );
+# populate( "SELECT setting from pg_settings where name = 'gara';", [ [ "allo" ] , [ "tollo" ] ] );
+# populate( "SELECT a,b,c from pg_settings where name = 'ga';", [ [ "a", "b", "c" ] , [ "allo", "billo", "collo" ] ] );
+# populate( "SELECT name,setting from pg_settings WHERE name = 'application_name';", [ [ "name", "setting" ], ["application_name", "psql" ], ["application_sguzzo", "psqlzzo" ]] )
+
+for i in range( 1, len(sys.argv), 2):
+    populate(sys.argv[i], ast.literal_eval(sys.argv[i+1]))
 
 # umask change is required to drive netcat to create a unix socket accessible from any user
 umask_old = os.umask(0)
