@@ -28,11 +28,13 @@ DEBUG=False
 
 exps = [ pexpect.EOF, pexpect.TIMEOUT,
          "\0\0\0T\0\3\0\0user\0postgres\0database\0postgres\0application_name\0psql\0client_encoding\0UTF8\0\0",
+         "\0\0\0?\0\3\0\0user\0postgres\0database\0postgres\0application_name\0psql\0\0",
          "X\0\0\0\4"
          ]
 
 reps = [ None, None,
          "R\0\0\0\10\0\0\0\0S\0\0\0\32application_name\0psql\0S\0\0\0\31client_encoding\0UTF8\0S\0\0\0\27DateStyle\0ISO, MDY\0S\0\0\0\31integer_datetimes\0on\0S\0\0\0\33IntervalStyle\0postgres\0S\0\0\0\24is_superuser\0on\0S\0\0\0\31server_encoding\0UTF8\0S\0\0\0\31server_version\0009.1.9\0S\0\0\0#session_authorization\0postgres\0S\0\0\0$standard_conforming_strings\0off\0S\0\0\0\27TimeZone\0localtime\0K\0\0\0\f\0\0|9\0302c8Z\0\0\0\5I",
+         "R\0\0\0\10\0\0\0\0S\0\0\0\32application_name\0psql\0S\0\0\0\31client_encoding\0UTF8\0S\0\0\0\27DateStyle\0ISO, MDY\0S\0\0\0\31integer_datetimes\0on\0S\0\0\0\33IntervalStyle\0postgres\0S\0\0\0\24is_superuser\0on\0S\0\0\0\31server_encoding\0UTF8\0S\0\0\0\31server_version\0009.1.9\0S\0\0\0#session_authorization\0postgres\0S\0\0\0$standard_conforming_strings\0off\0S\0\0\0\27TimeZone\0localtime\0K\0\0\0\f\0\0\17\336@2\262gZ\0\0\0\5I",
          None
          ]
 
@@ -42,7 +44,7 @@ reps = [ None, None,
 #
 def populate (exp, rep):
     exps.append( "Q"+struct.pack(">i", len(exp) +4 + 1)+exp+"\0")
-    
+
     t_fields = "" + struct.pack('>h', len(rep[0]))
     for t_field in rep[0]:
         t_fields = t_fields + t_field + '\x00' + struct.pack(">i", 43) + struct.pack(">h", 3840)
