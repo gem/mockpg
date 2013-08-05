@@ -118,7 +118,7 @@ def populate (exp, rep):
 
 if len(sys.argv) < 3 or ((len(sys.argv) - 1) % 2) != 0:
     print "Usage:"
-    print "    %s <match> <return> [<match> <return> [<match> <return> ... ]]" % sys.arg[0]
+    print "    %s [-t|--timeout <timeout>] <match> <return> [<match> <return> [<match> <return> ... ]]" % sys.arg[0]
     print "    <match>  - the query addressed"
     print "    <return> - a parsable string python object in the form [ [ descs ], [ first row ], ... ]"
     sys.exit(1)
@@ -128,7 +128,13 @@ if len(sys.argv) < 3 or ((len(sys.argv) - 1) % 2) != 0:
 # populate( "SELECT a,b,c from pg_settings where name = 'ga';", [ [ "a", "b", "c" ] , [ "allo", "billo", "collo" ] ] );
 # populate( "SELECT name,setting from pg_settings WHERE name = 'application_name';", [ [ "name", "setting" ], ["application_name", "psql" ], ["application_sguzzo", "psqlzzo" ]] )
 
-for i in range( 1, len(sys.argv), 2):
+timeout=30
+delta=0
+if sys.argv[1] == '-t' or sys.argv[1] == '--timeout':
+    timeout=int(sys.argv[2])
+    delta=2
+
+for i in range( delta+1, len(sys.argv), 2):
     populate(sys.argv[i], ast.literal_eval(sys.argv[i+1]))
 
 masterloop = True
@@ -136,7 +142,7 @@ while masterloop:
     finished = False
     # umask change is required to drive netcat to create a unix socket accessible from any user
     umask_old = os.umask(0)
-    child = pexpect.spawn('nc -l -U '+SOCK, timeout=30, maxread=1)
+    child = pexpect.spawn('nc -l -U '+SOCK, timeout=timeout, maxread=1)
     os.umask(umask_old)
 
     if not os.path.isdir(SOCKDIR):
@@ -167,6 +173,7 @@ while masterloop:
         elif r == exps_id['FINI']:
             finished = True
         elif r == exps_id['MOFF']:
+            finished = True
             masterloop = False
             break
 
@@ -186,7 +193,8 @@ while masterloop:
     child.close()
 
     if not finished or err:
-        print "Error with index %d" % r
+        if DEBUG:
+            print "Error with index %d" % r
         sys.exit(1)
 
 sys.exit(0)
