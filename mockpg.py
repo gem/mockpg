@@ -26,15 +26,22 @@ SOCK=SOCKDIR+".s.PGSQL.5432"
 
 DEBUG=False
 
-exps = [ pexpect.EOF, pexpect.TIMEOUT,
+exps_id = { 'EOF': 0, 'TOUT': 1, 'REQI': 2, 'REQN': 3, 'FINI': 4, 'MOFF': 5 }
+MPG_TOUT=1
+
+exps = [ pexpect.EOF,
+         pexpect.TIMEOUT,
          "\0\0\0T\0\3\0\0user\0postgres\0database\0postgres\0application_name\0psql\0client_encoding\0UTF8\0\0",
          "\0\0\0?\0\3\0\0user\0postgres\0database\0postgres\0application_name\0psql\0\0",
-         "X\0\0\0\4"
+         "X\0\0\0\4",
+         "mockpg stop"
          ]
 
-reps = [ None, None,
+reps = [ None,
+         None,
          "R\0\0\0\10\0\0\0\0S\0\0\0\32application_name\0psql\0S\0\0\0\31client_encoding\0UTF8\0S\0\0\0\27DateStyle\0ISO, MDY\0S\0\0\0\31integer_datetimes\0on\0S\0\0\0\33IntervalStyle\0postgres\0S\0\0\0\24is_superuser\0on\0S\0\0\0\31server_encoding\0UTF8\0S\0\0\0\31server_version\0009.1.9\0S\0\0\0#session_authorization\0postgres\0S\0\0\0$standard_conforming_strings\0off\0S\0\0\0\27TimeZone\0localtime\0K\0\0\0\f\0\0|9\0302c8Z\0\0\0\5I",
          "R\0\0\0\10\0\0\0\0S\0\0\0\32application_name\0psql\0S\0\0\0\31client_encoding\0UTF8\0S\0\0\0\27DateStyle\0ISO, MDY\0S\0\0\0\31integer_datetimes\0on\0S\0\0\0\33IntervalStyle\0postgres\0S\0\0\0\24is_superuser\0on\0S\0\0\0\31server_encoding\0UTF8\0S\0\0\0\31server_version\0009.1.9\0S\0\0\0#session_authorization\0postgres\0S\0\0\0$standard_conforming_strings\0off\0S\0\0\0\27TimeZone\0localtime\0K\0\0\0\f\0\0\17\336@2\262gZ\0\0\0\5I",
+         None,
          None
          ]
 
@@ -124,54 +131,62 @@ if len(sys.argv) < 3 or ((len(sys.argv) - 1) % 2) != 0:
 for i in range( 1, len(sys.argv), 2):
     populate(sys.argv[i], ast.literal_eval(sys.argv[i+1]))
 
-# umask change is required to drive netcat to create a unix socket accessible from any user
-umask_old = os.umask(0)
-child = pexpect.spawn('nc -l -U '+SOCK, timeout=30, maxread=1)
-os.umask(umask_old)
+masterloop = True
+while masterloop:
+    finished = False
+    # umask change is required to drive netcat to create a unix socket accessible from any user
+    umask_old = os.umask(0)
+    child = pexpect.spawn('nc -l -U '+SOCK, timeout=30, maxread=1)
+    os.umask(umask_old)
 
-if not os.path.isdir(SOCKDIR):
-    if os.access(SOCKDIR, os.R_OK):
-        os.unlink(SOCKDIR)
-    os.mkdir(SOCKDIR)
+    if not os.path.isdir(SOCKDIR):
+        if os.access(SOCKDIR, os.R_OK):
+            os.unlink(SOCKDIR)
+        os.mkdir(SOCKDIR)
 
-if os.access(SOCK, os.R_OK):
-    os.remove(SOCK)
+    if os.access(SOCK, os.R_OK):
+        os.remove(SOCK)
 
-# fout = file('pexpect.log','w')
-# child.logfile = fout
+    # fout = file('pexpect.log','w')
+    # child.logfile = fout
 
-pexpect.tty.setraw(child.fileno())
-print "READY"
-err = False
-while True:
-    # print "pre exp"
-    r = child.expect_exact (exps)
-    if DEBUG:
-        print "Received: [%s]" % repr(exps[r])
-
-    if r < 2:
-        err = True
-        break
-    elif r == 3:
-        finished = True
-
-    if reps[r] != None:
+    pexpect.tty.setraw(child.fileno())
+    print "READY"
+    err = False
+    while True:
+        # print "pre exp"
+        r = child.expect_exact (exps)
         if DEBUG:
-            print "Sent: [%s]" % repr(reps[r])
-        sent = child.send(reps[r])
-        if sent != len(reps[r]):
-            # r == 3 implies normal close
+            print "Received: [%s][%d]" % (repr(exps[r]), r)
+
+        if r == exps_id['EOF']:
+            break
+        elif r == exps_id['TOUT']:
             err = True
             break
-        # print "SEND REP [%d]" % sent
-        child.flush()
-    else:
-        child.sendeof()
-    
-child.close()
+        elif r == exps_id['FINI']:
+            finished = True
+        elif r == exps_id['MOFF']:
+            masterloop = False
+            break
 
-if not finished and err:
-    print "Error with index %d" % r
-    sys.exit(1)
-# print "post send"
+        if reps[r] != None:
+            if DEBUG:
+                print "Sent: [%s]" % repr(reps[r])
+            sent = child.send(reps[r])
+            if sent != len(reps[r]):
+                # r == exps_id['FINI'] implies normal close
+                err = True
+                break
+            # print "SEND REP [%d]" % sent
+            child.flush()
+        else:
+            child.sendeof()
+    
+    child.close()
+
+    if not finished or err:
+        print "Error with index %d" % r
+        sys.exit(1)
+
 sys.exit(0)
