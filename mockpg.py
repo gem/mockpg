@@ -128,6 +128,7 @@ if len(sys.argv) < 3 or ((len(sys.argv) - 1) % 2) != 0:
 # populate( "SELECT a,b,c from pg_settings where name = 'ga';", [ [ "a", "b", "c" ] , [ "allo", "billo", "collo" ] ] );
 # populate( "SELECT name,setting from pg_settings WHERE name = 'application_name';", [ [ "name", "setting" ], ["application_name", "psql" ], ["application_sguzzo", "psqlzzo" ]] )
 
+exit_code=0
 timeout=30
 delta=0
 if sys.argv[1] == '-t' or sys.argv[1] == '--timeout':
@@ -137,13 +138,14 @@ if sys.argv[1] == '-t' or sys.argv[1] == '--timeout':
 for i in range( delta+1, len(sys.argv), 2):
     populate(sys.argv[i], ast.literal_eval(sys.argv[i+1]))
 
+umask_old = os.umask(0)
+child = pexpect.spawn('nc -k -l -U '+SOCK, timeout=timeout, maxread=1)
+os.umask(umask_old)
+
 masterloop = True
 while masterloop:
     finished = False
     # umask change is required to drive netcat to create a unix socket accessible from any user
-    umask_old = os.umask(0)
-    child = pexpect.spawn('nc -l -U '+SOCK, timeout=timeout, maxread=1)
-    os.umask(umask_old)
 
     if not os.path.isdir(SOCKDIR):
         if os.access(SOCKDIR, os.R_OK):
@@ -157,7 +159,6 @@ while masterloop:
     # child.logfile = fout
 
     pexpect.tty.setraw(child.fileno())
-    print "READY"
     err = False
     while True:
         # print "pre exp"
@@ -188,13 +189,14 @@ while masterloop:
             # print "SEND REP [%d]" % sent
             child.flush()
         else:
-            child.sendeof()
-    
-    child.close()
+            if r == exps_id['TOUT']:
+                child.sendeof()
 
     if not finished or err:
         if DEBUG:
             print "Error with index %d" % r
-        sys.exit(1)
+        exit_code=1
+        child.close()
+        break
 
-sys.exit(0)
+sys.exit(exit_code)
